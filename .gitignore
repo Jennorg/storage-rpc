@@ -1,0 +1,40 @@
+# Binarios del servidor y cliente
+/bin/lbserver
+/bin/lbclient
+
+# Binarios compilados generales
+*.exe
+*.dll
+*.so
+*.dylib
+*.out
+
+# Archivos temporales y de log
+*.log
+*.tmp
+*.bak
+*.swp
+*.swo
+*.old
+
+# Archivos de salida del script de prueba
+server_output.log
+client_output.log
+
+# Directorios de compilación
+/build/
+/dist/
+
+# Archivos generados por Go
+*.test
+*.prof
+*.pb.go
+
+# Archivos generados por gRPC 
+*.pb.go
+*_grpc.pb.go
+
+# Archivos específicos de IDE/editor
+.vscode/
+.idea/
+*.iml
