@@ -18,8 +18,7 @@
 *.old
 
 # Archivos de salida del script de prueba
-server_output.log
-client_output.log
+summary_results.txt
 
 # Directorios de compilación
 /build/

@@ -1,71 +1,88 @@
 #!/bin/bash
 
-set -e
-
+SERVER=./bin/lbserver
+CLIENT=./bin/lbclient
+LOG_DIR=./logs
+RESULTS_DIR=./results
+SUMMARY_FILE=$RESULTS_DIR/summary_results.txt
 PORT=50051
-SERVER_LOG="server_output.log"
-CLIENT_LOG="client_output.log"
 
-echo "==== [0] Verificando si el puerto $PORT está libre ===="
-if lsof -i :$PORT -sTCP:LISTEN -t >/dev/null; then
-    echo "Error: El puerto $PORT ya está en uso. Aborta el script."
-    lsof -i :$PORT
+mkdir -p "$LOG_DIR"
+mkdir -p "$RESULTS_DIR"
+rm -f "$SUMMARY_FILE"
+
+kill_port_process() {
+  pid=$(lsof -t -i:$PORT)
+  if [ -n "$pid" ]; then
+    echo "Puerto $PORT ocupado por PID $pid, matando proceso..."
+    kill -9 $pid
+    sleep 0.5
+  fi
+}
+
+run_server() {
+  kill_port_process
+  $SERVER > "$LOG_DIR/server.log" 2>&1 &
+  SERVER_PID=$!
+  sleep 1
+  if ! ps -p $SERVER_PID > /dev/null; then
+    echo "[ERROR] El servidor falló al iniciar. Revisa $LOG_DIR/server.log"
     exit 1
-fi
+  fi
+}
 
-echo "==== [1] Limpiando logs anteriores ===="
-rm -f $SERVER_LOG $CLIENT_LOG
+kill_server() {
+  if ps -p $SERVER_PID > /dev/null 2>&1; then
+    kill $SERVER_PID
+    wait $SERVER_PID 2>/dev/null
+  fi
+}
 
-echo "==== [2] Iniciando el servidor ===="
-./bin/lbserver 2>&1 | tee $SERVER_LOG &
-SERVER_PID=$!
-sleep 2 
+run_stat() {
+  echo "[STAT]" | tee -a "$SUMMARY_FILE"
+  $CLIENT -mode stat >> "$SUMMARY_FILE" 2>&1
+}
 
-echo "Servidor iniciado (PID $SERVER_PID)"
+run_client() {
+  local label=$1
+  local nclients=$2
+  local valuesize=$3
+  local operations=$4
+  local phase=$5
 
-if ps -p $SERVER_PID > /dev/null; then
-    echo "Servidor está corriendo"
-else
-    echo "Servidor no está corriendo, revisa $SERVER_LOG"
-    exit 1
-fi
+  local client_output="$LOG_DIR/${label}.log"
 
-echo "==== [3] Ejecutando clientes concurrentes ===="
-START_TIME=$(date)
-echo "Hora de inicio del servidor: $START_TIME"
+  echo "Ejecutando $label"
+  run_server
 
-NUM_CLIENTS=3
-OPS_PER_CLIENT=100
-PREFIX="key"
+  start=$(date +%s.%N)
+  $CLIENT -server localhost:$PORT -mode set -count $operations -prefix $label -value-size $valuesize > "$client_output" 2>&1
+  end=$(date +%s.%N)
+  duration=$(echo "$end - $start" | bc)
 
-for i in $(seq 1 $NUM_CLIENTS); do
-    echo "-> Lanzando cliente set #$i"
-    ./bin/lbclient --mode=set --count=$OPS_PER_CLIENT --prefix=$PREFIX >> $CLIENT_LOG 2>&1 &
-    
-    echo "-> Lanzando cliente get #$i"
-    ./bin/lbclient --mode=get --count=$OPS_PER_CLIENT --prefix=$PREFIX >> $CLIENT_LOG 2>&1 &
-    
-    echo "-> Lanzando cliente getprefix #$i"
-    ./bin/lbclient --mode=getprefix --count=$OPS_PER_CLIENT --prefix=$PREFIX >> $CLIENT_LOG 2>&1 &
+  echo "Duración total para $label ($nclients clientes): $duration segundos" | tee -a "$SUMMARY_FILE"
+
+  run_stat
+  kill_server
+}
+
+echo "Running tests..."
+
+# Experimento 1: Latencia por tamaño de valor
+echo "[Experimento 1] Latencia por tamaño de valor" | tee -a "$SUMMARY_FILE"
+for size in 128 512 1024 4096 8192; do
+  run_client "exp1_size_${size}B" 1 $size 100
 done
 
-echo "==== [4] Esperando a que terminen los clientes ===="
-wait
-echo "Todos los clientes han terminado."
+# Experimento 2: Lecturas frías vs calientes (durabilidad)
+echo "[Experimento 2] Lecturas frías vs calientes (durabilidad)" | tee -a "$SUMMARY_FILE"
+run_client "exp2_durability_512B_pre" 1 512 50 "-putget"
+run_client "exp2_durability_512B_post" 1 512 50 "-getonly"
 
-echo "==== [5] Deteniendo servidor (PID $SERVER_PID) ===="
-kill -INT $SERVER_PID
-wait $SERVER_PID || true
+# Experimento 3: Escalabilidad por número de clientes
+echo "[Experimento 3] Escalabilidad por número de clientes (valor fijo 1024B)" | tee -a "$SUMMARY_FILE"
+for clients in 1 4 8 16; do
+  run_client "exp3_concurrency_${clients}c" $clients 1024 100
+done
 
-echo "==== [6] Mostrando estadísticas ===="
-
-echo -e "\n========== ESTADÍSTICAS DEL CLIENTE =========="
-echo "#total_sets completados:      $(grep -c 'SET OK' $CLIENT_LOG)"
-echo "#total_gets completados:      $(grep -c 'GET OK' $CLIENT_LOG)"
-echo "#total_getprefixes completados: $(grep -c 'GETPREFIX OK' $CLIENT_LOG)"
-
-echo -e "\n========== ESTADÍSTICAS DEL SERVIDOR =========="
-grep "#total_" $SERVER_LOG || echo "(no se encontraron estadísticas en el log del servidor)"
-
-END_TIME=$(date)
-echo "Hora de finalización: $END_TIME"
+echo "Todos los experimentos completados. Resultados resumidos en $SUMMARY_FILE"

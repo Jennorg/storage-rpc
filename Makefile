@@ -3,7 +3,7 @@
 SERVER_BIN = lbserver
 CLIENT_BIN = lbclient
 BIN_DIR = ./bin
-DATA_DIR = ./data
+LOGS_DIR = ./logs
 
 all: server client
 
@@ -18,7 +18,7 @@ client:
 clean:
 	@echo "Cleaning up..."
 	rm -f $(BIN_DIR)/$(SERVER_BIN) $(BIN_DIR)/$(CLIENT_BIN)
-	rm -rf $(DATA_DIR)
+	rm -rf $(LOGS_DIR)
 	@echo "Clean complete."
 
 protos:

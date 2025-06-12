@@ -62,10 +62,18 @@ func (s *server) GetPrefix(ctx context.Context, req *pb.GetPrefixRequest) (*pb.G
 	}, nil
 }
 
+func (s *server) Stat(ctx context.Context, req *pb.StatRequest) (*pb.StatResponse, error) {
+	return &pb.StatResponse{
+		TotalSets:        atomic.LoadUint64(&s.totalSets),
+		TotalGets:        atomic.LoadUint64(&s.totalGets),
+		TotalGetprefixes: atomic.LoadUint64(&s.totalGetPrefixes),
+	}, nil
+}
+
 func main() {
 	log.Println("Iniciando servidor...")
 
-	store, err := kvstore.NewKVStore("data/wal.log")
+	store, err := kvstore.NewKVStore("logs/wal.log")
 	if err != nil {
 		log.Fatalf("Error iniciando KVStore: %v", err)
 	}

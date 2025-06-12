@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package api;
 
-option go_package = "storage-rpc/pkg/api"; // ¡Importante! Coincide con el nombre de tu módulo
+option go_package = "storage-rpc/pkg/api";
 
 service KeyValueStore {
   rpc Set(SetRequest) returns (SetResponse);
@@ -11,7 +11,6 @@ service KeyValueStore {
   rpc Stat(StatRequest) returns (StatResponse);
 }
 
-// Definiciones de mensajes para cada RPC
 message SetRequest {
   string key = 1;
   string value = 2;
@@ -46,7 +45,7 @@ message KeyValuePair {
 message StatRequest {}
 
 message StatResponse {
-  int64 num_keys = 1;
-  int64 total_data_size_bytes = 2;
-  // Puedes añadir más estadísticas aquí
+  uint64 total_sets = 1;
+  uint64 total_gets = 2;
+  uint64 total_getprefixes = 3;
 }
