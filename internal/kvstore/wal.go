@@ -3,7 +3,9 @@ package kvstore
 import (
 	"bufio"
 	"encoding/json"
+	"io"
 	"os"
+	"strings"
 	"sync"
 )
 
@@ -54,15 +56,29 @@ func (w *WAL) ReadAll() ([]WALEntry, error) {
 		return nil, err
 	}
 
+	reader := bufio.NewReader(w.file)
 	var entries []WALEntry
-	scanner := bufio.NewScanner(w.file)
-	for scanner.Scan() {
+
+	for {
+		line, err := reader.ReadString('\n')
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return nil, err
+		}
+
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+
 		var entry WALEntry
-		if err := json.Unmarshal(scanner.Bytes(), &entry); err != nil {
+		if err := json.Unmarshal([]byte(line), &entry); err != nil {
 			continue
 		}
 		entries = append(entries, entry)
 	}
 
-	return entries, scanner.Err()
+	return entries, nil
 }

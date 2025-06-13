@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+  server:
+    build: . # Dockerfile está en el directorio actual
+    container_name: rpc_server
+    ports:
+      - "50051:50051" # Mapea el puerto del contenedor al puerto de la máquina host
+    command: ./bin/lbserver # Comando para iniciar el servidor
+
+  client:
+    build: . # Dockerfile está en el directorio actual
+    container_name: rpc_client
+    depends_on:
+      - server # Asegura que el servidor inicie antes que el cliente
+    # Para la CLI interactiva del cliente, puedes usar un modo de entrada interactivo
+    stdin_open: true # Permite entrada interactiva
+    tty: true        # Asigna un pseudo-TTY
+    # El comando por defecto cuando inicies el cliente a través de compose
+    # Aquí puedes pasar argumentos como --mode, --count, etc.
+    # El `server` dentro de la red de Docker Compose se resuelve automáticamente al servicio 'server'
+    command: ./bin/lbclient --server=server:50051

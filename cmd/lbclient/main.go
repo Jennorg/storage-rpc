@@ -12,6 +12,7 @@ import (
 	pb "storage-rpc/pkg/api"
 
 	"google.golang.org/grpc"
+	insecure "google.golang.org/grpc/credentials/insecure"
 )
 
 func main() {
@@ -24,7 +25,14 @@ func main() {
 
 	flag.Parse()
 
-	conn, err := grpc.Dial(*serverAddr, grpc.WithInsecure())
+	conn, err := grpc.Dial(*serverAddr,
+		grpc.WithDefaultCallOptions(
+			grpc.MaxCallRecvMsgSize(10*1024*1024),
+			grpc.MaxCallSendMsgSize(10*1024*1024),
+		),
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	)
+
 	if err != nil {
 		log.Fatalf("No se pudo conectar: %v", err)
 	}
@@ -85,6 +93,33 @@ func main() {
 						log.Printf("GETPREFIX OK LATENCY: %v", duration)
 					}
 				}
+
+			case "mix":
+				rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+				for i := startIndex; i < endIndex; i++ {
+					key := fmt.Sprintf("%s-%d", *prefix, i)
+					if rng.Intn(2) == 0 {
+						value := randomString(*valueSize)
+						start := time.Now()
+						_, err := client.Set(context.Background(), &pb.SetRequest{Key: key, Value: value})
+						duration := time.Since(start)
+						if err != nil {
+							log.Printf("[MIX-SET FAIL] %v", err)
+						} else {
+							log.Printf("MIX SET OK %s LATENCY: %v", key, duration)
+						}
+					} else {
+						start := time.Now()
+						_, err := client.Get(context.Background(), &pb.GetRequest{Key: key})
+						duration := time.Since(start)
+						if err != nil {
+							log.Printf("[MIX-GET FAIL] %v", err)
+						} else {
+							log.Printf("MIX GET OK %s LATENCY: %v", key, duration)
+						}
+					}
+				}
+
 			case "stat":
 				start := time.Now()
 				resp, err := client.Stat(context.Background(), &pb.StatRequest{})

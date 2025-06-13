@@ -78,12 +78,16 @@ func main() {
 		log.Fatalf("Error iniciando KVStore: %v", err)
 	}
 
-	lis, err := net.Listen("tcp", ":50051")
+	lis, err := net.Listen("tcp", "127.0.0.1:50051")
 	if err != nil {
 		log.Fatalf("Error escuchando: %v", err)
 	}
 
-	s := grpc.NewServer()
+	s := grpc.NewServer(
+		grpc.MaxRecvMsgSize(10*1024*1024), // 10 MB LIMITE
+		grpc.MaxSendMsgSize(10*1024*1024),
+	)
+
 	kvServer := &server{store: store}
 	pb.RegisterKeyValueStoreServer(s, kvServer)
 

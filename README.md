@@ -38,19 +38,19 @@ make all
 ### Ejecutar servidor
 
 ```bash
-make run-server
+make server
 ```
 
 ### Ejecutar cliente
 
 ```bash
-make run-client
+make client
 ```
 
 Argumentos del cliente:
 
 ```bash
---mode       set | get | getprefix
+--mode       set | get | getprefix | stat
 --count      Número de operaciones
 --prefix     Prefijo de claves a usar
 --server     Dirección del servidor (por defecto localhost:50051)
