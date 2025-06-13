@@ -40,7 +40,7 @@ kill_server() {
 
 run_stat() {
   echo "[STAT]" | tee -a "$SUMMARY_FILE"
-  $CLIENT -mode stat >> "$SUMMARY_FILE" 2>&1
+  $CLIENT -mode stat -server localhost:$PORT >> "$SUMMARY_FILE" 2>&1
 }
 
 run_client() {
@@ -48,41 +48,42 @@ run_client() {
   local nclients=$2
   local valuesize=$3
   local operations=$4
-  local phase=$5
+  local mode=$5
 
-  local client_output="$LOG_DIR/${label}.log"
-
-  echo "Ejecutando $label"
   run_server
 
+  echo "Ejecutando $label modo $mode con $nclients clientes concurrentes, value size $valuesize, operaciones $operations"
   start=$(date +%s.%N)
-  $CLIENT -server localhost:$PORT -mode set -count $operations -prefix $label -value-size $valuesize > "$client_output" 2>&1
+  $CLIENT -server localhost:$PORT -mode $mode -count $operations -clients $nclients -prefix $label -value-size $valuesize > "$LOG_DIR/${label}_${mode}.log" 2>&1
   end=$(date +%s.%N)
   duration=$(echo "$end - $start" | bc)
 
-  echo "Duración total para $label ($nclients clientes): $duration segundos" | tee -a "$SUMMARY_FILE"
-
+  echo "Duración total para $label ($mode): $duration segundos" | tee -a "$SUMMARY_FILE"
   run_stat
   kill_server
+  echo "" >> "$SUMMARY_FILE"
 }
 
-echo "Running tests..."
+echo "Iniciando tests..."
 
 # Experimento 1: Latencia por tamaño de valor
 echo "[Experimento 1] Latencia por tamaño de valor" | tee -a "$SUMMARY_FILE"
 for size in 128 512 1024 4096 8192; do
-  run_client "exp1_size_${size}B" 1 $size 100
+  run_client "exp1_size_${size}B" 1 $size 100 set
+  run_client "exp1_size_${size}B" 1 $size 100 get
+  run_client "exp1_size_${size}B" 1 $size 10 getprefix
 done
 
 # Experimento 2: Lecturas frías vs calientes (durabilidad)
 echo "[Experimento 2] Lecturas frías vs calientes (durabilidad)" | tee -a "$SUMMARY_FILE"
-run_client "exp2_durability_512B_pre" 1 512 50 "-putget"
-run_client "exp2_durability_512B_post" 1 512 50 "-getonly"
+run_client "exp2_durability_512B_pre" 1 512 50 set
+run_client "exp2_durability_512B_post" 1 512 50 get
 
-# Experimento 3: Escalabilidad por número de clientes
-echo "[Experimento 3] Escalabilidad por número de clientes (valor fijo 1024B)" | tee -a "$SUMMARY_FILE"
+# Experimento 3: Escalabilidad por número de clientes concurrentes
+echo "[Experimento 3] Escalabilidad por número de clientes" | tee -a "$SUMMARY_FILE"
 for clients in 1 4 8 16; do
-  run_client "exp3_concurrency_${clients}c" $clients 1024 100
+  run_client "exp3_concurrency_${clients}c" $clients 1024 100 set
+  run_client "exp3_concurrency_${clients}c" $clients 1024 100 get
 done
 
 echo "Todos los experimentos completados. Resultados resumidos en $SUMMARY_FILE"
